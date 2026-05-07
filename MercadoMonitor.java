@@ -40,6 +40,19 @@ public class MercadoMonitor implements Mercado {
       id_cont = 0;
       mutex = new Monitor();
   }
+  private int matchV(int preciominimo, int id){
+      int resultado = id;
+      int maximo = 0;
+      for(Integer ids : compras.keySet()) {
+        Oferta c = compras.get(ids);
+        if (c.dinero == 0 && c.precio >= preciominimo && (c.precio > maximo || (c.precio == maximo && ids < resultado))){
+            //La condicion entra cuando es compatible, y la mejor de todas las compatibles hasta ese punto
+            maximo = c.precio;
+            resultado = ids;
+        }
+      }
+      return resultado;
+  }
 
   public int venta(int minPrecio, int tks) {
     // TODO: implementar venta

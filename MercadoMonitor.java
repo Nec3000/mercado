@@ -41,7 +41,7 @@ public class MercadoMonitor implements Mercado {
       mutex = new Monitor();
   }
   private int matchV(int preciominimo, int id){
-      int resultado = id;
+      int resultado = -1;
       int maximo = 0;
       for(Integer ids : compras.keySet()) {
         Oferta c = compras.get(ids);
@@ -56,11 +56,24 @@ public class MercadoMonitor implements Mercado {
 
   public int venta(int minPrecio, int tks) {
     // TODO: implementar venta
+      Oferta v = null;
       mutex.enter();
       int resultado = id_cont;
       id_cont++;
+      int compatible = matchV(minPrecio, resultado);
+      if(tks == 0 || compatible == -1){
+          v = new Oferta(minPrecio, tks, 0);
+          ventas.put(resultado, v);
+      }
+      else {
+          Oferta c = ventas.get(resultado);
+          int precio = (minPrecio + c.precio) / 2;
+          v = new Oferta(minPrecio, tks, precio);
+          c.precio = precio;
+          ventas.put(resultado, v);
+          compras.put(compatible, c);
 
-
+      }
 
     return -1;
   }

@@ -45,7 +45,7 @@ public class MercadoMonitor implements Mercado {
       int maximo = 0;
       for(Integer ids : compras.keySet()) {
         Oferta c = compras.get(ids);
-        if (c.dinero == 0 && c.precio >= preciominimo && (c.precio > maximo || (c.precio == maximo && ids < resultado))){
+        if (c.ticks > 0 && c.dinero == 0 && c.precio >= preciominimo && (c.precio > maximo || (c.precio == maximo && ids < resultado))){
             //La condicion entra cuando es compatible, y la mejor de todas las compatibles hasta ese punto
             maximo = c.precio;
             resultado = ids;
@@ -66,21 +66,55 @@ public class MercadoMonitor implements Mercado {
           ventas.put(resultado, v);
       }
       else {
-          Oferta c = ventas.get(resultado);
+          Oferta c = compras.get(resultado);
           int precio = (minPrecio + c.precio) / 2;
           v = new Oferta(minPrecio, tks, precio);
           c.precio = precio;
+          //actualizamos con lo nuevo
           ventas.put(resultado, v);
           compras.put(compatible, c);
-
+          this.max = precio > max? precio:max;
+          this.min = precio < min ? precio:min;
       }
-
-    return -1;
+    return resultado;
   }
+    private int matchC(int preciomaximo, int id){
+        int resultado = -1;
+        int minimo = 0;
+        for(Integer ids : ventas.keySet()) {
+            Oferta c = ventas.get(ids);
+            if (c.ticks > 0 && c.dinero == 0 && c.precio <= preciomaximo && (c.precio < minimo || (c.precio == minimo && ids < resultado))){
+                //La condicion entra cuando es compatible, y la mejor de todas las compatibles hasta ese punto
+                minimo = c.precio;
+                resultado = ids;
+            }
+        }
+        return resultado;
+    }
 
   public int compra(int maxPrecio, int tks) {
     // TODO: implementar compra
-    return -1;
+      Oferta c = null;
+      mutex.enter();
+      int resultado = id_cont;
+      id_cont++;
+      int compatible = matchC(maxPrecio, resultado);
+      if(tks == 0 || compatible == -1){
+          c = new Oferta(maxPrecio, tks, 0);
+          compras.put(resultado, c);
+      }
+      else {
+          Oferta v = ventas.get(resultado);
+          int precio = (maxPrecio + v.precio) / 2;
+          c = new Oferta(maxPrecio, tks, precio);
+          v.precio = precio;
+          //actualizamos con lo nuevo
+          ventas.put(compatible, v);
+          compras.put(resultado, c);
+          this.max = precio > max? precio:max;
+          this.min = precio < min ? precio:min;
+      }
+      return resultado;
   }
 
   public int resultadoOferta(int id) {

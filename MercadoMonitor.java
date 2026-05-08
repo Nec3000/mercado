@@ -76,6 +76,7 @@ public class MercadoMonitor implements Mercado {
           this.max = precio > max? precio:max;
           this.min = precio < min ? precio:min;
       }
+      mutex.leave();
     return resultado;
   }
     private int matchC(int preciomaximo, int id){
@@ -114,6 +115,7 @@ public class MercadoMonitor implements Mercado {
           this.max = precio > max? precio:max;
           this.min = precio < min ? precio:min;
       }
+      mutex.leave();
       return resultado;
   }
 

@@ -120,8 +120,19 @@ public class MercadoMonitor implements Mercado {
   }
 
   public int resultadoOferta(int id) {
-    // TODO: implementar resultadoOferta
-    return -1;
+    // TODO: CPRE
+      int res = 0;
+      if(compras.containsKey(id) || ventas.containsKey(id)){
+          mutex.enter();
+          if(compras.containsKey(id)){
+              res = compras.get(id).precio;
+          }
+          else{
+              res = ventas.get(id).precio;
+          }
+          mutex.leave();
+      }
+    return res;
   }
 
   public void alertaPrecioBajo(int limite) {

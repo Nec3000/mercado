@@ -3,7 +3,9 @@ package cc.mercado;
 
 import es.upm.babel.cclib.Monitor;
 
+import javax.swing.plaf.multi.MultiTextUI;
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Implementación del recurso compartido Carretera con Monitores
@@ -16,6 +18,8 @@ public class MercadoMonitor implements Mercado {
   // atributos para representar el estado del recurso
   private HashMap<Integer,Oferta> compras;
   private HashMap<Integer,Oferta> ventas;
+  private HashMap<Monitor.Cond, Integer> alertabajo=new HashMap<>();
+  private HashMap<Monitor.Cond, Integer> alertaalto=new HashMap<>();
   private int max;
   private int min;
   private int id_cont;
@@ -137,6 +141,26 @@ public class MercadoMonitor implements Mercado {
 
   public void alertaPrecioBajo(int limite) {
     // TODO: implementar alertaPrecioBajo
+      mutex.enter();
+      Monitor.Cond Condi=mutex.newCond();
+      alertabajo.put(Condi,limite);
+      if (limite < min){
+          Condi.await();
+      }
+      alertabajo.remove(Condi);
+      desbloqueo();
+  }
+  private void desbloqueo(){
+
+      for(Map.Entry<Monitor.Cond,Integer>entry: alertabajo.entrySet()){
+          Monitor.Cond cond = entry.getKey();
+          int limiteAlerta = entry.getValue();
+          if(cond.waiting()>0&&limiteAlerta>=min){
+              cond.signal();
+              return;
+          }
+      }
+      mutex.leave();
   }
   
   public void alertaPrecioAlto(int limite) {

@@ -26,6 +26,12 @@ public class MercadoCSP implements Mercado, CSProcess {
   private static class MessageCompra{
     int maxPrecio;
     int tks;
+    ChannelOutputInt chRes;
+    MessageCompra(int maxPrecio, int tks, ChannelOutputInt chRes){
+        this.maxPrecio=maxPrecio;
+        this.tks=tks;
+        this.chRes=chRes;
+    }
   }
   private static class MessageAlertaPrecioBajo{}
   private static class MessageAlertaPrecioAlto{}
@@ -57,7 +63,7 @@ public class MercadoCSP implements Mercado, CSProcess {
     // TODO: código que ejecuta el cliente para enviar/recibir un
     // mensaje al server para que ejecute compra
     One2OneChannelInt chRes = Channel.one2oneInt();
-    chCompra.out().write(new MessageCompra());
+    chCompra.out().write(new MessageCompra(maxPrecio,tks,chRes.out()));
     return chRes.in().read();
   }
 

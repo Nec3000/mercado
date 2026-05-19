@@ -3,8 +3,8 @@ package cc.mercado;
 
 import es.upm.babel.cclib.Monitor;
 
-import javax.swing.plaf.multi.MultiTextUI;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -148,18 +148,20 @@ public class MercadoMonitor implements Mercado {
           Condi.await();
       }
       alertabajo.remove(Condi);
-      desbloqueo();
+      desbloqueo(limite);
   }
-  private void desbloqueo(){
-
-      for(Map.Entry<Monitor.Cond,Integer>entry: alertabajo.entrySet()){
-          Monitor.Cond cond = entry.getKey();
-          int limiteAlerta = entry.getValue();
-          if(cond.waiting()>0&&limiteAlerta>=min){
-              cond.signal();
-              return;
-          }
-      }
+  private void desbloqueo(int limite){
+        Iterator<Map.Entry<Monitor.Cond, Integer>> it = alertabajo.entrySet().iterator();
+        boolean encontrado = false;
+        while (it.hasNext() && !encontrado) {
+            Map.Entry<Monitor.Cond, Integer> e = it.next();
+            Monitor.Cond cond = e.getKey();
+            int limiteAlerta = e.getValue();
+            if(cond.waiting()>0 && limiteAlerta>=min){
+                cond.signal();
+                encontrado = true;//tenemos que parar al encontrar uno para no hacer signals sin parar y cargarnoslo
+            }
+        }
       mutex.leave();
   }
   

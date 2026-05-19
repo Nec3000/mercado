@@ -39,8 +39,8 @@ public class MercadoMonitor implements Mercado {
     // TODO: inicializar estado, monitor y conditions
       compras = new HashMap<>();
       ventas = new HashMap<>();
-      max = Integer.MAX_VALUE;
-      min = Integer.MIN_VALUE;//queremos emular el infinito del C-tad, es el menor numero posible dado por java, lo mismo con max
+      max = Integer.MIN_VALUE;
+      min = Integer.MAX_VALUE;//queremos emular el infinito del C-tad, es el menor numero posible dado por java, lo mismo con max
       id_cont = 0;
       mutex = new Monitor();
   }
@@ -168,7 +168,21 @@ public class MercadoMonitor implements Mercado {
   }
 
   public void tick() {
-    // TODO: implementar tick
+    // TODO: implementar singals?
+      mutex.enter();
+      this.max = Integer.MIN_VALUE;
+      this.min = Integer.MAX_VALUE;
+      for (Integer ids : ventas.keySet()) {
+          Oferta c = ventas.get(ids);
+          c.ticks = Math.max(c.ticks-1, 0);
+          ventas.put(ids, c);
+      }
+      for (Integer ids : compras.keySet()) {
+          Oferta c = compras.get(ids);
+          c.ticks = Math.max(c.ticks-1, 0);
+          compras.put(ids, c);
+      }
+      mutex.leave();
   }
 }
 

@@ -5,7 +5,6 @@ import org.jcsp.lang.*;
 
 
 public class MercadoCSP implements Mercado, CSProcess {
-  // TODO: Declaración de canales
   private Any2OneChannel chVenta;
   private Any2OneChannel chCompra;
   private Any2OneChannel chResultadoOferta;
@@ -33,11 +32,32 @@ public class MercadoCSP implements Mercado, CSProcess {
         this.chRes=chRes;
     }
   }
-  private static class MessageAlertaPrecioBajo{}
-  private static class MessageAlertaPrecioAlto{}
-  private static class MessageTick{}
+  private static class MessageAlertaPrecioBajo{
+    int limite;
+    ChannelOutputInt chRes;
+    MessageAlertaPrecioBajo(int limite, ChannelOutputInt chRes){
+      this.limite=limite;
+      this.chRes=chRes;
+    }
+  }
+  private static class MessageAlertaPrecioAlto{
+    int limite;
+    ChannelOutputInt chRes;
+    MessageAlertaPrecioAlto(int limite, ChannelOutputInt chRes){
+      this.limite=limite;
+      this.chRes=chRes;
+    }
+  }
+  private static class MessageResOferta{
+    int id;
+    ChannelOutputInt chRes;
+    MessageResOferta(int id, ChannelOutputInt chRes){
+      this.id=id;
+      this.chRes=chRes;
+    }
+  }
+
   public MercadoCSP() {
-    // TODO: Creación de canales para comunicación con el servidor
     chVenta=Channel.any2one();
     chCompra=Channel.any2one();
     chResultadoOferta=Channel.any2one();
@@ -52,40 +72,38 @@ public class MercadoCSP implements Mercado, CSProcess {
   }
 
   public int venta(int minPrecio, int tks) {
-    // TODO: código que ejecuta el cliente para enviar/recibir un
-    // mensaje al server para que ejecute venta
     One2OneChannelInt chRes = Channel.one2oneInt();
     chVenta.out().write(new MessageVenta(minPrecio,tks,chRes.out()));
     return chRes.in().read();
   }
 
   public int compra(int maxPrecio, int tks) {
-    // TODO: código que ejecuta el cliente para enviar/recibir un
-    // mensaje al server para que ejecute compra
     One2OneChannelInt chRes = Channel.one2oneInt();
     chCompra.out().write(new MessageCompra(maxPrecio,tks,chRes.out()));
     return chRes.in().read();
   }
 
   public int resultadoOferta(int id) {
-    // TODO: código que ejecuta el cliente para enviar/recibir un
-    // mensaje al server para que ejecute resultadoOferta
-    return -1;
+    One2OneChannelInt chRes = Channel.one2oneInt();
+    chResultadoOferta.out().write(new MessageResOferta(id, chRes.out()));
+    return chRes.in().read();
   }
 
   public void alertaPrecioBajo(int limite) {
-    // TODO: código que ejecuta el cliente para enviar/recibir un
-    // mensaje al server para que ejecute alertaPrecioBajo
+    One2OneChannelInt chRes = Channel.one2oneInt();
+    chAlertaPrecioBajo.out().write(new MessageAlertaPrecioBajo(limite,chRes.out()));
+    chRes.in().read();
+
   }
   
   public void alertaPrecioAlto(int limite) {
-    // TODO: código que ejecuta el cliente para enviar/recibir un
-    // mensaje al server para que ejecute alertaPrecioAlto
+    One2OneChannelInt chRes = Channel.one2oneInt();
+    chAlertaPrecioAlto.out().write(new MessageAlertaPrecioAlto(limite, chRes.out()));
+    chRes.in().read();
   }
 
   public void tick() {
-    // TODO: código que ejecuta el cliente para enviar/recibir un
-    // mensaje al server para que ejecute tick
+    chTick.out().write(null);
   }
 
   // Código del servidor

@@ -1,18 +1,12 @@
-// Nunca cambia la declaracion del package!
 package cc.mercado;
 
 import es.upm.babel.cclib.Monitor;
-
 import javax.swing.plaf.multi.MultiTextUI;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Implementación del recurso compartido Carretera con Monitores
- */
+
 public class MercadoMonitor implements Mercado {
-  // TODO: añadir atributos para representar el estado del recurso y
-  // la gestión de la concurrencia (monitor y conditions)
   Monitor mutex;
 
   // atributos para representar el estado del recurso
@@ -36,7 +30,6 @@ public class MercadoMonitor implements Mercado {
   }
 
   public MercadoMonitor() {
-    // TODO: inicializar estado, monitor y conditions
       compras = new HashMap<>();
       ventas = new HashMap<>();
       max = Integer.MAX_VALUE;
@@ -59,7 +52,6 @@ public class MercadoMonitor implements Mercado {
   }
 
   public int venta(int minPrecio, int tks) {
-    // TODO: implementar venta
       Oferta v = null;
       mutex.enter();
       int resultado = id_cont;
@@ -98,7 +90,6 @@ public class MercadoMonitor implements Mercado {
     }
 
   public int compra(int maxPrecio, int tks) {
-    // TODO: implementar compra
       Oferta c = null;
       mutex.enter();
       int resultado = id_cont;
@@ -124,7 +115,6 @@ public class MercadoMonitor implements Mercado {
   }
 
   public int resultadoOferta(int id) {
-    // TODO: CPRE
       int res = 0;
       if(compras.containsKey(id) || ventas.containsKey(id)){
           mutex.enter();
@@ -140,7 +130,6 @@ public class MercadoMonitor implements Mercado {
   }
 
   public void alertaPrecioBajo(int limite) {
-    // TODO: implementar alertaPrecioBajo
       mutex.enter();
       Monitor.Cond Condi=mutex.newCond();
       alertabajo.put(Condi,limite);
@@ -148,9 +137,10 @@ public class MercadoMonitor implements Mercado {
           Condi.await();
       }
       alertabajo.remove(Condi);
-      desbloqueo();
+      desbloqueo_generico();
+      mutex.leave();
   }
-  private void desbloqueo(){
+  private void desbloqueo_generico(){
 
       for(Map.Entry<Monitor.Cond,Integer>entry: alertabajo.entrySet()){
           Monitor.Cond cond = entry.getKey();
@@ -160,11 +150,17 @@ public class MercadoMonitor implements Mercado {
               return;
           }
       }
-      mutex.leave();
   }
   
   public void alertaPrecioAlto(int limite) {
-    // TODO: implementar alertaPrecioAlto
+    mutex.enter();
+    if(!(limite<=max)){
+        Monitor.Cond condition = mutex.newCond();
+        condition.await();
+
+    }
+    desbloqueo_generico();
+    mutex.leave();
   }
 
   public void tick() {

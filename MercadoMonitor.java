@@ -1,10 +1,9 @@
 package cc.mercado;
 
 import es.upm.babel.cclib.Monitor;
-import javax.swing.plaf.multi.MultiTextUI;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
-
 
 public class MercadoMonitor implements Mercado {
   Monitor mutex;
@@ -137,34 +136,49 @@ public class MercadoMonitor implements Mercado {
           Condi.await();
       }
       alertabajo.remove(Condi);
-      desbloqueo_generico();
-      mutex.leave();
+      desbloqueo(limite);
   }
-  private void desbloqueo_generico(){
-
-      for(Map.Entry<Monitor.Cond,Integer>entry: alertabajo.entrySet()){
-          Monitor.Cond cond = entry.getKey();
-          int limiteAlerta = entry.getValue();
-          if(cond.waiting()>0&&limiteAlerta>=min){
-              cond.signal();
-              return;
-          }
-      }
-  }
+    private void desbloqueo(int limite){
+        Iterator<Map.Entry<Monitor.Cond, Integer>> it = alertabajo.entrySet().iterator();
+        boolean encontrado = false;
+        while (it.hasNext() && !encontrado) {
+            Map.Entry<Monitor.Cond, Integer> e = it.next();
+            Monitor.Cond cond = e.getKey();
+            int limiteAlerta = e.getValue();
+            if(cond.waiting()>0 && limiteAlerta>=min){
+                cond.signal();
+                encontrado = true;//tenemos que parar al encontrar uno para no hacer signals sin parar y cargarnoslo
+            }
+        }
+        mutex.leave();
+    }
   
   public void alertaPrecioAlto(int limite) {
-    mutex.enter();
-    if(!(limite<=max)){
-        Monitor.Cond condition = mutex.newCond();
-        condition.await();
+      mutex.enter();
+      if(!(limite<=max)){
+          Monitor.Cond condition = mutex.newCond();
+          condition.await();
 
-    }
-    desbloqueo_generico();
-    mutex.leave();
+      }
+      desbloqueo(limite);
+      mutex.leave();
   }
 
   public void tick() {
-    // TODO: implementar tick
+      mutex.enter();
+      this.max = Integer.MIN_VALUE;
+      this.min = Integer.MAX_VALUE;
+      for (Integer ids : ventas.keySet()) {
+          Oferta c = ventas.get(ids);
+          c.ticks = Math.max(c.ticks-1, 0);
+          ventas.put(ids, c);
+      }
+      for (Integer ids : compras.keySet()) {
+          Oferta c = compras.get(ids);
+          c.ticks = Math.max(c.ticks-1, 0);
+          compras.put(ids, c);
+      }
+      mutex.leave();
   }
 }
 

@@ -151,6 +151,7 @@ public class MercadoMonitor implements Mercado {
   */
   public int resultadoOferta(int id) {
       Oferta oferta;
+      int res = 0;
       mutex.enter();
       //como aquí ya existe una CPRE se requiere generar la condicion del monitor para mandar a esperar a los hilos
       Monitor.Cond cond = mutex.newCond();
@@ -161,20 +162,20 @@ public class MercadoMonitor implements Mercado {
           oferta = ventas.get(id);
       }
       //esta sería la CPRE donde se decide si un hilo se va a esperar o puede ser usado
-      if(oferta!=null&&oferta.dinero==0&&oferta.ticks>0){
-          Resultado.put(cond,id);
-          cond.await();
-          Resultado.remove(cond);
-          if(compras.containsKey(id)){
-              oferta = compras.get(id);
-          }
-          else{
-              oferta = ventas.get(id);
-          }
-      }
-      int res=0;
       if(oferta!=null){
-        res=oferta.dinero;
+          if(oferta.dinero==0 && oferta.ticks>0){
+            Resultado.put(cond,id);
+            cond.await();
+            Resultado.remove(cond);
+            //cuando el hilo vuelve, necesita volver a tener la oferta
+            if(compras.containsKey(id)){
+              oferta = compras.get(id);
+            }
+            else{
+                oferta = ventas.get(id);
+            }
+          }
+          res = oferta.dinero;
       }
       //el desbloque se encarga de ir despertando en orden según cumplan las condiciones los hilos que se mandan a dormir
       desbloqueo();
@@ -222,7 +223,7 @@ public class MercadoMonitor implements Mercado {
       //se declara de forma inversa para que la primera declaración de valor en una oferta,
       // ya sea de compra o venta acabe correctamente colocada
       this.max = Integer.MIN_VALUE; //-inf
-      this.min = Integer.MAX_VALUE; //-inf
+      this.min = Integer.MAX_VALUE; //inf
       //se recorre la lista generada con los valores de las claves de las ventas
       for (Integer ids : ventas.keySet()) {
           Oferta c = ventas.get(ids);

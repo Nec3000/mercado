@@ -61,7 +61,7 @@ public class MercadoMonitor implements Mercado {
           ventas.put(resultado, v);
       }
       else {
-          Oferta c = compras.get(resultado);
+          Oferta c = compras.get(compatible);
           int precio = (minPrecio + c.precio) / 2;
           v = new Oferta(minPrecio, tks, precio);
           c.precio = precio;
@@ -99,7 +99,7 @@ public class MercadoMonitor implements Mercado {
           compras.put(resultado, c);
       }
       else {
-          Oferta v = ventas.get(resultado);
+          Oferta v = ventas.get(compatible);
           int precio = (maxPrecio + v.precio) / 2;
           c = new Oferta(maxPrecio, tks, precio);
           v.precio = precio;
@@ -161,7 +161,6 @@ public class MercadoMonitor implements Mercado {
 
       }
       desbloqueo(limite);
-      mutex.leave();
   }
 
   public void tick() {

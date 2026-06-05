@@ -1,9 +1,14 @@
 // Nunca cambia la declaracion del package!
 package cc.mercado;
 
+import es.upm.babel.cclib.Monitor;
 import org.jcsp.lang.*;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 
 public class MercadoCSP implements Mercado, CSProcess {
@@ -20,6 +25,7 @@ public class MercadoCSP implements Mercado, CSProcess {
   private HashMap<Integer, Oferta> compras;
   private HashMap<Integer, Oferta> ventas;
 
+    //tipo privado oferta
     private static class Oferta {
         int precio;
         int ticks;
@@ -30,6 +36,8 @@ public class MercadoCSP implements Mercado, CSProcess {
             this.dinero = dinero;
         }
     }
+    //aqui los paquetes que enviaran nuestro canales
+    //tambien lo usamos para almacenar las aplazadas
   private static class MessageVenta{
     int minPrecio;
     int tks;
@@ -50,7 +58,10 @@ public class MercadoCSP implements Mercado, CSProcess {
         this.chRes=chRes;
     }
   }
-  private static class MessageAlertaPrecioBajo{
+  //es una idea rapida para poder meter todos en la coleccion de peticiones aplazadas
+  public interface Aplazable{};
+
+  private static class MessageAlertaPrecioBajo implements Aplazable{
     int limite;
     ChannelOutputInt chRes;
     MessageAlertaPrecioBajo(int limite, ChannelOutputInt chRes){
@@ -58,7 +69,7 @@ public class MercadoCSP implements Mercado, CSProcess {
       this.chRes=chRes;
     }
   }
-  private static class MessageAlertaPrecioAlto{
+  private static class MessageAlertaPrecioAlto implements Aplazable{
     int limite;
     ChannelOutputInt chRes;
     MessageAlertaPrecioAlto(int limite, ChannelOutputInt chRes){
@@ -66,7 +77,7 @@ public class MercadoCSP implements Mercado, CSProcess {
       this.chRes=chRes;
     }
   }
-  private static class MessageResOferta{
+  private static class MessageResOferta implements Aplazable{
     int id;
     ChannelOutputInt chRes;
     MessageResOferta(int id, ChannelOutputInt chRes){
@@ -76,12 +87,15 @@ public class MercadoCSP implements Mercado, CSProcess {
   }
 
   public MercadoCSP() {
+      //todos nuestros canales
     chVenta=Channel.any2one();
     chCompra=Channel.any2one();
     chResultadoOferta=Channel.any2one();
     chAlertaPrecioAlto=Channel.any2one();
     chAlertaPrecioBajo=Channel.any2one();
     chTick=Channel.any2one();
+
+    //los estados del recurso
     id_cont = 0;
     ventas = new HashMap<>();
     compras = new HashMap<>();
@@ -93,7 +107,6 @@ public class MercadoCSP implements Mercado, CSProcess {
 
     new ProcessManager(this).start();
   }
-
   public int venta(int minPrecio, int tks) {
     One2OneChannelInt chRes = Channel.one2oneInt();
     chVenta.out().write(new MessageVenta(minPrecio,tks,chRes.out()));
@@ -130,7 +143,7 @@ public class MercadoCSP implements Mercado, CSProcess {
   }
   public int EjVenta(int minPrecio, int tks) {
       Oferta v = null;
-      //como la CPRE siempre es cierta entonces no se tiene que hacer ninguna condición que mande a dormir a los hilos
+      //como la CPRE siempre es cierta entonces no se tiene que hacer nada de peticiones aplazadas
       int resultado = id_cont;
       id_cont++;
       int compatible = matchV(minPrecio, resultado);
@@ -170,70 +183,194 @@ public class MercadoCSP implements Mercado, CSProcess {
         }
         return resultado;
     }
+    private int EjCompra(int maxPrecio, int tks){
+        Oferta c = null;
+        //igual que Venta
+        int resultado = id_cont;
+        id_cont++;
+        int compatible = matchC(maxPrecio, resultado);
+        if(tks == 0 || compatible == -1){
+            c = new Oferta(maxPrecio, tks, 0);
+            compras.put(resultado, c);
+        }
+        else {
+            Oferta v = ventas.get(compatible);
+            int precio = (maxPrecio + v.precio) / 2;
+            c = new Oferta(maxPrecio, tks, precio);
+            //dinero ganado por el comprador
+            v.dinero = precio;
+            //dinero gastado
+            c.dinero = precio;
+            //actualizamos con lo nuevo
+            ventas.put(compatible, v);
+            compras.put(resultado, c);
+            this.max = precio > max? precio:max;
+            this.min = precio < min ? precio:min;
+        }
+        return resultado;
+    }
+    private int matchC(int preciomaximo, int id){
+        int resultado = -1;
+        //es para buscar minimos correctamente desde el valor más alto posible
+        int minimo = Integer.MAX_VALUE;
+        for(Integer ids : ventas.keySet()) {
+            Oferta c = ventas.get(ids);
+            if (c.ticks > 0 && c.dinero == 0 && c.precio <= preciomaximo && (c.precio < minimo || (c.precio == minimo && ids < resultado))){
+                //La condicion entra cuando es compatible, y la mejor de todas las compatibles hasta ese punto
+                minimo = c.precio;
+                resultado = ids;
+            }
+        }
+        return resultado;
+    }
+    public int EjRes(int id) {
+        Oferta oferta;
+        int res = -1;
+        //vemos si cumple la pre aunque no sea obligatorio
+        if(compras.containsKey(id)){
+            oferta = compras.get(id);
+        }
+        else if (ventas.containsKey(id)){
+            oferta = ventas.get(id);
+        }
+        //damos el -1 de fallo
+        else{
+            return res;
+        }
+        //esta sería la CPRE donde se decide si aplazamos o no
+        if(oferta.dinero==0 && oferta.ticks>0){
+            return res;
+        }
+        //si cumple todas las condiciones, los rellenamos
+        res = oferta.dinero;
+        return res;
+    }
+    public void EjTick() {
+        this.max = Integer.MIN_VALUE; //-inf
+        this.min = Integer.MAX_VALUE; //inf
+        //se recorre la lista generada con los valores de las claves de las ventas
+        for (Integer ids : ventas.keySet()) {
+            Oferta c = ventas.get(ids);
+            c.ticks = Math.max(c.ticks-1, 0);
+            ventas.put(ids, c);
+        }
+        //se recorre la lista generada con los valores de las claves de las compras
+        for (Integer ids : compras.keySet()) {
+            Oferta c = compras.get(ids);
+            c.ticks = Math.max(c.ticks-1, 0);
+            compras.put(ids, c);
+        }
+    }
 
   // Código del servidor
   public void run() {
-    // TODO: declaración e inicialización del estado del recurso
+      //declaramos índices
       final int VENTA = 0;
       final int COMPRA = 1;
       final int RESOFERTA = 2;
-      final int ALBAJO = 3;
-      final int ALALTO = 4;
+      final int ALALTO = 3;
+      final int ALBAJO = 4;
       final int TICK = 5;
-    // TODO: declaración e inicialización de estructuras de datos para
-    // almacenar peticiones de los clientes
-      boolean[] sincConds = new boolean[6];
-      sincConds[VENTA]=true;
-      sincConds[COMPRA]=true;
-
-      sincConds[TICK]=true;
-
-    // TODO: declaración e inicialización de arrays necesarios para
-    // poder hacer la recepción no determinista (Alternative)
-    // TODO: cambiar null por el array de canales
-    AltingChannelInput[] entradas = {chVenta.in(),
+      //usamos aplazable para poder guardar cualquiera de los 3 procesos
+      Collection<Aplazable> aplazadas = new ArrayList<>();
+      //canales
+      AltingChannelInput[] entradas = {chVenta.in(),
                                      chCompra.in(),
                                      chResultadoOferta.in(),
                                      chAlertaPrecioAlto.in(),
                                      chAlertaPrecioBajo.in(),
                                      chTick.in()};
-
-    Alternative servicios = new Alternative(entradas);
-
+      //todas true porque 3 no tienen cpre, y las otras tres van con peticiones aplazadas
+      boolean[] sincConds = {true,true,true,true,true,true};
+      Alternative servicios = new Alternative(entradas);
     // Bucle principal del servicio
     while(true){
-      // TODO: declaración de variables auxiliares
       int servicio;
-
-      // TODO: cálculo de las guardas
-
-      // TODO: cambiar null por el array de guardas
       servicio = servicios.fairSelect(sincConds);
-
-      // TODO: ejecutar la operación solicitada por el cliente
       switch (servicio){
       case VENTA:
-        // TODO: ejecutar operación 0 o almacenar la petición y
-        // responder al cliente si es posible
         MessageVenta msgV = (MessageVenta) entradas[VENTA].read();
-        int id = EjVenta(msgV.minPrecio, msgV.tks);
+        int idV = EjVenta(msgV.minPrecio, msgV.tks);//lo mandamos a calcular
+        msgV.chRes.write(idV);//se lo devolvemos al emisor
         break;
       case COMPRA:
           //sacamos el paquete que nos envia la compra
           MessageCompra msgC = (MessageCompra) entradas[COMPRA].read();
-
+          int idC = EjCompra(msgC.maxPrecio,msgC.tks);
+          msgC.chRes.write(idC);//devolvemos
           break;
       case RESOFERTA:
+          MessageResOferta msgRes = (MessageResOferta) entradas[RESOFERTA].read();
+          int idRes = EjRes(msgRes.id);
+          //es el valor puesto para indicar si debe ser aplazada, añadimos a la lista
+          if(idRes == -1){
+              aplazadas.add(msgRes);
+          }
+          else{
+              msgRes.chRes.write(idRes);
+          }
           break;
       case ALBAJO:
+        MessageAlertaPrecioBajo msgBajo = (MessageAlertaPrecioBajo)  entradas[ALBAJO].read();
+        //sin metodo auxiliar porque es muy corto, evaluamos la condicion
+        if(msgBajo.limite < min){
+            aplazadas.add(msgBajo);
+        }
+        else{
+            //si esta correcto, respodemos
+            msgBajo.chRes.write(0);
+        }
           break;
       case ALALTO:
+        MessageAlertaPrecioAlto msgAlto = (MessageAlertaPrecioAlto) entradas[ALALTO].read();
+        if(msgAlto.limite > max){
+            aplazadas.add(msgAlto);
+        }
+        else{
+            msgAlto.chRes.write(0);
+        }
           break;
       case TICK:
+          //tick no nos envia nada, simplemente pasamos a ejecutar
+          entradas[TICK].read();
+          EjTick();
+          //no espera respuesta
           break;
       }
-
-      // TODO: atender peticiones pendientes que puedan ser atendidas
+      //vamos a intentar limpiar las aplazadas
+      ResAplazadas(aplazadas);
     }
   }
+
+    private void ResAplazadas(Collection<Aplazable> aplazadas) {
+      int res;
+      Iterator<Aplazable> it = aplazadas.iterator();
+          while(it.hasNext()){
+              Aplazable a = it.next();
+              //tenemos que averiguar que mensaje estamos mirando, comprobamos su clase
+              if(a instanceof MessageResOferta){
+                  res = EjRes(((MessageResOferta) a).id);
+                  //si ahora funciona devolvemos, si no lo dejamos en la lista
+                  if(res != -1){
+                      ((MessageResOferta) a).chRes.write(res);
+                      it.remove();
+                  }
+              }
+              else if(a instanceof MessageAlertaPrecioAlto){
+                  //comprobamos directamente la condición
+                  if(((MessageAlertaPrecioAlto) a).limite <= max){
+                      ((MessageAlertaPrecioAlto) a).chRes.write(0);
+                      it.remove();
+                  }
+              }
+              else if(a instanceof MessageAlertaPrecioBajo){
+                  //igual que alto
+                  if(((MessageAlertaPrecioBajo) a).limite >= min){
+                      ((MessageAlertaPrecioBajo) a).chRes.write(0);
+                      it.remove();
+                  }
+              }
+          }
+
+    }
 }
